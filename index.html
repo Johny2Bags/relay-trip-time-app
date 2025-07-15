@@ -586,7 +586,8 @@
                 const underlyingTripTime = calculateTripTime(multiplier, curveType, tms, dtDelay);
 
                 const row = resultsTableBody.insertRow();
-                row.className = 'hover:bg-gray-50 transition duration-150';
+                // Removed the hover:bg-gray-50 class to prevent conflict with touch events
+                row.className = 'transition duration-150'; 
 
                 const cell1 = row.insertCell(0); // Current Multiplier
                 const cell2 = row.insertCell(1); // Fault Current (Primary)
