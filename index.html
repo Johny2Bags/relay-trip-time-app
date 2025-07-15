@@ -327,8 +327,8 @@
                         {
                             label: `Trip Time -5%`,
                             data: filteredDataMinus5,
-                            borderColor: 'rgba(173, 216, 230, 0)', // Transparent border for shading
-                            backgroundColor: 'rgba(173, 216, 230, 0.3)', // Faint blue shade
+                            borderColor: 'rgba(59, 130, 246, 0.7)', // Darker blue border for shading
+                            backgroundColor: 'rgba(59, 130, 246, 0.25)', // Darker faint blue shade
                             borderWidth: 0, // No line for this dataset
                             pointRadius: 0,
                             fill: false, // This dataset should not fill from the origin
@@ -338,8 +338,8 @@
                         {
                             label: `Trip Time +5%`,
                             data: filteredDataPlus5,
-                            borderColor: 'rgba(173, 216, 230, 0)', // Transparent border for shading
-                            backgroundColor: 'rgba(173, 216, 230, 0.3)', // Faint blue shade
+                            borderColor: 'rgba(59, 130, 246, 0.7)', // Darker blue border for shading
+                            backgroundColor: 'rgba(59, 130, 246, 0.25)', // Darker faint blue shade
                             borderWidth: 0, // No line for this dataset
                             pointRadius: 0,
                             fill: '-1', // Fill from this line to the previous dataset (the -5% line)
@@ -347,11 +347,11 @@
                             order: 2 // Draw this second to fill between +5% and -5%
                         },
                         {
-                            label: `Expected Trip Time for ${curveType} Curve`,
+                            label: `Expected Trip Time`, // Changed label here
                             data: filteredData,
                             borderColor: 'rgb(59, 130, 246)', // Blue color for the main line
                             backgroundColor: 'rgba(59, 130, 246, 0.2)',
-                            borderWidth: 2,
+                            borderWidth: 0.8, // Made thinner (original was 2, previous was 1)
                             pointRadius: 3,
                             pointBackgroundColor: 'rgb(59, 130, 246)',
                             fill: false,
@@ -363,9 +363,9 @@
                             data: actualPlotData,
                             borderColor: 'rgb(255, 99, 132)', // Red color for actual points
                             backgroundColor: 'rgb(255, 99, 132)',
-                            borderWidth: 2,
-                            pointRadius: 5, // Larger points for visibility
-                            pointStyle: 'rectRot', // Square points
+                            borderWidth: 2, // Thinner cross (increased from 1.5 to 2)
+                            pointRadius: 8, // Slightly larger for visibility as a cross (increased from 6 to 8)
+                            pointStyle: 'crossRot', // Changed to thin cross
                             fill: false,
                             showLine: false, // Do not connect points with a line
                             order: 0 // Draw this on top of everything else
@@ -600,7 +600,7 @@
             if (relayType === "VIP_400_RANGE") {
                 thConditional.textContent = 'CT Secondary Injection (mV)';
             } else {
-                thConditional.textContent = 'CT Secondary Current (Injection) [A]';
+                thConditional.textContent = 'CT Secondary (Injection) [A]'; // Changed: Removed "Current"
             }
             headerRow.appendChild(thConditional);
 
@@ -611,20 +611,26 @@
             thActualTime.textContent = 'Actual Trip Time (s)';
             headerRow.appendChild(thActualTime);
 
+            // Add -5% Time (s) header (moved to the left of Expected Trip Time)
+            const thMinus5 = document.createElement('th');
+            thMinus5.scope = 'col';
+            thMinus5.className = 'px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider';
+            thMinus5.textContent = '-5% Time (s)';
+            headerRow.appendChild(thMinus5);
 
-            // Add remaining fixed headers
-            const fixedHeadersFinal = [
-                "Expected Trip Time (s)",
-                "+5% Time (s)",
-                "-5% Time (s)"
-            ];
-            fixedHeadersFinal.forEach(text => {
-                const th = document.createElement('th');
-                th.scope = 'col';
-                th.className = 'px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider';
-                th.textContent = text;
-                headerRow.appendChild(th);
-            });
+            // Add Expected Trip Time (s) header
+            const thExpected = document.createElement('th');
+            thExpected.scope = 'col';
+            thExpected.className = 'px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider';
+            thExpected.textContent = 'Expected Trip Time (s)';
+            headerRow.appendChild(thExpected);
+
+            // Add +5% Time (s) header
+            const thPlus5 = document.createElement('th');
+            thPlus5.scope = 'col';
+            thPlus5.className = 'px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider';
+            thPlus5.textContent = '+5% Time (s)';
+            headerRow.appendChild(thPlus5);
         }
 
 
@@ -696,9 +702,9 @@
                 const cell2 = row.insertCell(1); // Fault Current (Primary)
                 const cell3 = row.insertCell(2); // Conditional 3rd column (Secondary Current or mV Injection)
                 const cellActualTimeInputCell = row.insertCell(3); // New cell for Actual Trip Time input
-                const cell4 = row.insertCell(4); // Expected Trip Time (s)
-                const cell5 = row.insertCell(5); // +5% Time (s)
-                const cell6 = row.insertCell(6); // -5% Time (s)
+                const cellMinus5 = row.insertCell(4); // -5% Time (s) - NEW POSITION
+                const cellExpected = row.insertCell(5); // Expected Trip Time (s) - NEW POSITION
+                const cellPlus5 = row.insertCell(6); // +5% Time (s) - NEW POSITION
 
                 // Apply common cell styling
                 const commonCellClass = 'px-4 py-2 whitespace-nowrap text-sm text-gray-700';
@@ -706,9 +712,9 @@
                 cell2.className = commonCellClass;
                 cell3.className = commonCellClass; // This cell's content changes
                 cellActualTimeInputCell.className = commonCellClass; // New cell for input
-                cell4.className = commonCellClass;
-                cell5.className = commonCellClass;
-                cell6.className = commonCellClass;
+                cellMinus5.className = commonCellClass; // NEW
+                cellExpected.className = commonCellClass; // NEW
+                cellPlus5.className = commonCellClass; // NEW
 
                 cell1.textContent = multiplier.toFixed(1);
                 cell2.textContent = faultCurrentPrimary.toFixed(2);
@@ -717,7 +723,7 @@
                 if (relayType === "VIP_400_RANGE") {
                     cell3.textContent = (ctSecondaryCurrent * 150).toFixed(2); // mV injection
                 } else {
-                    cell3.textContent = ctSecondaryCurrent.toFixed(2); // Ampere injection
+                    cell3.textContent = ctSecondaryCurrent.toFixed(2); // Ampere injection (Removed "Current")
                 }
 
                 // Create and append the input field for Actual Trip Time
@@ -745,13 +751,13 @@
                 cellActualTimeInputCell.appendChild(actualTimeInput);
 
                 const displayTripTime = typeof underlyingTripTime === 'number' ? underlyingTripTime.toFixed(3) : underlyingTripTime;
-                cell4.textContent = displayTripTime;
+                cellExpected.textContent = displayTripTime; // Updated to new cell reference
 
                 if (typeof underlyingTripTime === 'number') {
                     const timeMinus5 = underlyingTripTime * 0.95;
                     const timePlus5 = underlyingTripTime * 1.05;
-                    cell5.textContent = timePlus5.toFixed(3);
-                    cell6.textContent = timeMinus5.toFixed(3);
+                    cellPlus5.textContent = timePlus5.toFixed(3); // Updated to new cell reference
+                    cellMinus5.textContent = timeMinus5.toFixed(3); // Updated to new cell reference
 
                     // For chart data (only add if it's a valid number)
                     primaryFaultCurrentsForChart.push(faultCurrentPrimary);
@@ -759,8 +765,8 @@
                     tripTimesMinus5Percent.push(timeMinus5);
                     tripTimesPlus5Percent.push(timePlus5);
                 } else {
-                    cell5.textContent = "N/A";
-                    cell6.textContent = "N/A";
+                    cellPlus5.textContent = "N/A"; // Updated to new cell reference
+                    cellMinus5.textContent = "N/A"; // Updated to new cell reference
                     // For chart data, if "No Trip" etc., we don't add to chart arrays
                 }
 
