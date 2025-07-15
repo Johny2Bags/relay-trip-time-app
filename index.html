@@ -46,6 +46,21 @@
         .highlighted-row {
             background-color: #dcfce7; /* Faint green */
         }
+        /* Style for the actual trip time input field */
+        .actual-time-input {
+            width: 100px; /* Adjust width as needed */
+            padding: 4px 8px;
+            border: 1px solid #d1d5db; /* gray-300 */
+            border-radius: 0.375rem; /* rounded-md */
+            font-size: 0.875rem; /* text-sm */
+            line-height: 1.25rem;
+            box-shadow: inset 0 1px 2px rgba(0,0,0,0.05);
+        }
+        .actual-time-input:focus {
+            outline: none;
+            border-color: #3b82f6; /* blue-500 */
+            box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.2); /* ring-blue-500 with opacity */
+        }
     </style>
 </head>
 <body class="p-4 sm:p-6 md:p-8 lg:p-10 bg-gray-100 min-h-screen flex items-center justify-center">
@@ -251,13 +266,19 @@
         let tripChart; // Variable to hold the Chart.js instance
         let lastClickedRow = null; // Variable to keep track of the last clicked row
 
+        // Store actual trip times keyed by their primary fault current for easy access when updating the chart
+        const actualTripTimesMap = new Map();
+
         /**
          * Initializes or updates the Chart.js graph.
          * @param {Array<number>} labels - X-axis labels (Fault Current - primary).
          * @param {Array<number>} data - Y-axis data (Trip Times).
          * @param {string} curveType - The selected curve type for the chart title.
+         * @param {Array<number>} dataMinus5 - Y-axis data for -5% trip times.
+         * @param {Array<number>} dataPlus5 - Y-axis data for +5% trip times.
+         * @param {Map<number, number>} actualTimesMap - Map of primary fault current to actual trip time.
          */
-        function updateChart(labels, data, curveType) {
+        function updateChart(labels, data, curveType, dataMinus5, dataPlus5, actualTimesMap) {
             if (tripChart) {
                 tripChart.destroy(); // Destroy existing chart instance to prevent memory leaks
             }
@@ -265,29 +286,91 @@
             // Filter out "No Trip" or invalid values for plotting
             const filteredLabels = [];
             const filteredData = [];
+            const filteredDataMinus5 = [];
+            const filteredDataPlus5 = [];
+            const actualPlotData = []; // Data for actual trip time points
+
             for (let i = 0; i < labels.length; i++) {
-                if (data[i] !== "No Trip" && data[i] !== "Very Long Time / No Trip" && data[i] !== "Invalid Curve Type") {
+                if (typeof data[i] === 'number' && data[i] !== 0) {
                     filteredLabels.push(labels[i]);
                     filteredData.push(data[i]);
+                    filteredDataMinus5.push(dataMinus5[i]);
+                    filteredDataPlus5.push(dataPlus5[i]);
+
+                    // Add actual trip time if available for this fault current
+                    if (actualTimesMap.has(labels[i])) {
+                        actualPlotData.push({ x: labels[i], y: actualTimesMap.get(labels[i]) });
+                    }
                 }
             }
+
+            // Calculate dynamic min/max for X and Y axes
+            let minX = Math.min(...filteredLabels);
+            let maxX = Math.max(...filteredLabels);
+            let minY = Math.min(...filteredData, ...filteredDataMinus5, ...filteredDataPlus5, ...actualPlotData.map(p => p.y));
+            let maxY = Math.max(...filteredData, ...filteredDataMinus5, ...filteredDataPlus5, ...actualPlotData.map(p => p.y));
+
+            // Add padding for logarithmic scales. Ensure minimums are > 0.
+            // For log scales, a multiplicative padding works best.
+            minX = Math.max(0.1, minX * 0.8); // Ensure it's not zero for log scale
+            maxX = maxX * 1.2;
+            minY = Math.max(0.01, minY * 0.8); // Ensure it's not zero for log scale
+            maxY = maxY * 1.2;
+
 
             const ctx = tripTimeChartCanvas.getContext('2d');
             tripChart = new Chart(ctx, {
                 type: 'line',
                 data: {
                     labels: filteredLabels,
-                    datasets: [{
-                        label: `Trip Time for ${curveType} Curve`,
-                        data: filteredData,
-                        borderColor: 'rgb(59, 130, 246)', // Blue color
-                        backgroundColor: 'rgba(59, 130, 246, 0.2)',
-                        borderWidth: 2,
-                        pointRadius: 3,
-                        pointBackgroundColor: 'rgb(59, 130, 246)',
-                        fill: false,
-                        tension: 0.1 // Smooth the curve
-                    }]
+                    datasets: [
+                        {
+                            label: `Trip Time -5%`,
+                            data: filteredDataMinus5,
+                            borderColor: 'rgba(173, 216, 230, 0)', // Transparent border for shading
+                            backgroundColor: 'rgba(173, 216, 230, 0.3)', // Faint blue shade
+                            borderWidth: 0, // No line for this dataset
+                            pointRadius: 0,
+                            fill: false, // This dataset should not fill from the origin
+                            tension: 0.1,
+                            order: 3 // Draw this first so it's at the bottom of the stack
+                        },
+                        {
+                            label: `Trip Time +5%`,
+                            data: filteredDataPlus5,
+                            borderColor: 'rgba(173, 216, 230, 0)', // Transparent border for shading
+                            backgroundColor: 'rgba(173, 216, 230, 0.3)', // Faint blue shade
+                            borderWidth: 0, // No line for this dataset
+                            pointRadius: 0,
+                            fill: '-1', // Fill from this line to the previous dataset (the -5% line)
+                            tension: 0.1,
+                            order: 2 // Draw this second to fill between +5% and -5%
+                        },
+                        {
+                            label: `Expected Trip Time for ${curveType} Curve`,
+                            data: filteredData,
+                            borderColor: 'rgb(59, 130, 246)', // Blue color for the main line
+                            backgroundColor: 'rgba(59, 130, 246, 0.2)',
+                            borderWidth: 2,
+                            pointRadius: 3,
+                            pointBackgroundColor: 'rgb(59, 130, 246)',
+                            fill: false,
+                            tension: 0.1,
+                            order: 1 // Draw this last so it's on top
+                        },
+                        {
+                            label: 'Actual Trip Time',
+                            data: actualPlotData,
+                            borderColor: 'rgb(255, 99, 132)', // Red color for actual points
+                            backgroundColor: 'rgb(255, 99, 132)',
+                            borderWidth: 2,
+                            pointRadius: 5, // Larger points for visibility
+                            pointStyle: 'rectRot', // Square points
+                            fill: false,
+                            showLine: false, // Do not connect points with a line
+                            order: 0 // Draw this on top of everything else
+                        }
+                    ]
                 },
                 options: {
                     responsive: true,
@@ -295,6 +378,8 @@
                     scales: {
                         x: {
                             type: 'logarithmic', // Logarithmic scale for current
+                            min: minX, // Set dynamic min
+                            max: maxX, // Set dynamic max
                             title: {
                                 display: true,
                                 text: 'Fault Current (Primary Side) [A] - Log Scale',
@@ -322,6 +407,8 @@
                         },
                         y: {
                             type: 'logarithmic', // Logarithmic scale for time
+                            min: minY, // Set dynamic min
+                            max: maxY, // Set dynamic max
                             title: {
                                 display: true,
                                 text: 'Trip Time (s) - Log Scale',
@@ -368,7 +455,12 @@
                                         label += ': ';
                                     }
                                     if (context.parsed.y !== null) {
-                                        label += `${context.parsed.y.toFixed(3)} s at ${context.parsed.x.toFixed(2)} A (Primary)`;
+                                        // For actual points, show both X and Y
+                                        if (context.dataset.label === 'Actual Trip Time') {
+                                            label += `X: ${context.parsed.x.toFixed(2)} A, Y: ${context.parsed.y.toFixed(3)} s`;
+                                        } else {
+                                            label += `${context.parsed.y.toFixed(3)} s at ${context.parsed.x.toFixed(2)} A (Primary)`;
+                                        }
                                     }
                                     return label;
                                 }
@@ -512,6 +604,14 @@
             }
             headerRow.appendChild(thConditional);
 
+            // Add new header for Actual Trip Time
+            const thActualTime = document.createElement('th');
+            thActualTime.scope = 'col';
+            thActualTime.className = 'px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider';
+            thActualTime.textContent = 'Actual Trip Time (s)';
+            headerRow.appendChild(thActualTime);
+
+
             // Add remaining fixed headers
             const fixedHeadersFinal = [
                 "Expected Trip Time (s)",
@@ -541,14 +641,14 @@
             const ctSecondary = parseFloat(ctSecondaryInput.value);
 
             // Validate inputs
-            // The number of columns is always 6 now, as one column replaces another.
-            const errorColspan = 6;
+            // The number of columns is now 7.
+            const errorColspan = 7;
 
             if (isNaN(iset) || iset <= 0 || isNaN(tms) || tms <= 0 || isNaN(dtDelay) || dtDelay < 0) {
                 resultsTableBody.innerHTML = `<tr><td colspan="${errorColspan}" class="px-4 py-2 text-center text-red-600">Please enter valid positive numbers for Relay Settings.</td></tr>`;
                 updateConstantsDisplay();
                 updateTableHeaders(); // Ensure headers are correct even with error
-                updateChart([], [], curveType); // Clear chart
+                updateChart([], [], curveType, [], [], new Map()); // Clear chart including tolerance bands and actual points
                 return;
             }
 
@@ -557,7 +657,7 @@
                 resultsTableBody.innerHTML = `<tr><td colspan="${errorColspan}" class="px-4 py-2 text-center text-red-600">Invalid CT Ratio. Please enter positive values for CT Primary and Secondary.</td></tr>`;
                 updateConstantsDisplay();
                 updateTableHeaders(); // Ensure headers are correct even with error
-                updateChart([], [], curveType); // Clear chart
+                updateChart([], [], curveType, [], [], new Map()); // Clear chart including tolerance bands and actual points
                 return;
             }
 
@@ -578,6 +678,9 @@
 
             const tripTimesForChart = []; // Store actual trip times for chart
             const primaryFaultCurrentsForChart = []; // Store primary fault currents for chart
+            const tripTimesMinus5Percent = []; // Store -5% trip times for chart shading
+            const tripTimesPlus5Percent = []; // Store +5% trip times for chart shading
+            const currentActualTripTimesMap = new Map(); // Map to store actual times for chart update
 
             currentMultipliers.forEach(multiplier => {
                 const faultCurrentPrimary = multiplier * iset;
@@ -592,15 +695,17 @@
                 const cell1 = row.insertCell(0); // Current Multiplier
                 const cell2 = row.insertCell(1); // Fault Current (Primary)
                 const cell3 = row.insertCell(2); // Conditional 3rd column (Secondary Current or mV Injection)
-                const cell4 = row.insertCell(3); // Expected Trip Time (s)
-                const cell5 = row.insertCell(4); // +5% Time (s)
-                const cell6 = row.insertCell(5); // -5% Time (s)
+                const cellActualTimeInputCell = row.insertCell(3); // New cell for Actual Trip Time input
+                const cell4 = row.insertCell(4); // Expected Trip Time (s)
+                const cell5 = row.insertCell(5); // +5% Time (s)
+                const cell6 = row.insertCell(6); // -5% Time (s)
 
                 // Apply common cell styling
                 const commonCellClass = 'px-4 py-2 whitespace-nowrap text-sm text-gray-700';
                 cell1.className = 'px-4 py-2 whitespace-nowrap text-sm font-medium text-gray-900'; // Multiplier is slightly different
                 cell2.className = commonCellClass;
                 cell3.className = commonCellClass; // This cell's content changes
+                cellActualTimeInputCell.className = commonCellClass; // New cell for input
                 cell4.className = commonCellClass;
                 cell5.className = commonCellClass;
                 cell6.className = commonCellClass;
@@ -615,15 +720,48 @@
                     cell3.textContent = ctSecondaryCurrent.toFixed(2); // Ampere injection
                 }
 
+                // Create and append the input field for Actual Trip Time
+                const actualTimeInput = document.createElement('input');
+                actualTimeInput.type = 'number';
+                actualTimeInput.step = '0.001';
+                actualTimeInput.min = '0';
+                actualTimeInput.className = 'actual-time-input';
+                actualTimeInput.placeholder = 'Enter time';
+                actualTimeInput.dataset.faultCurrentPrimary = faultCurrentPrimary; // Store fault current for chart update
+                
+                // Add event listener to update chart when actual time is entered
+                actualTimeInput.addEventListener('input', (event) => {
+                    const enteredTime = parseFloat(event.target.value);
+                    const fcPrimary = parseFloat(event.target.dataset.faultCurrentPrimary);
+
+                    if (!isNaN(enteredTime) && enteredTime >= 0) {
+                        currentActualTripTimesMap.set(fcPrimary, enteredTime);
+                    } else {
+                        currentActualTripTimesMap.delete(fcPrimary); // Remove if invalid or empty
+                    }
+                    // Re-draw chart with updated actual times
+                    updateChart(primaryFaultCurrentsForChart, tripTimesForChart, curveType, tripTimesMinus5Percent, tripTimesPlus5Percent, currentActualTripTimesMap);
+                });
+                cellActualTimeInputCell.appendChild(actualTimeInput);
+
                 const displayTripTime = typeof underlyingTripTime === 'number' ? underlyingTripTime.toFixed(3) : underlyingTripTime;
                 cell4.textContent = displayTripTime;
 
                 if (typeof underlyingTripTime === 'number') {
-                    cell5.textContent = (underlyingTripTime * 1.05).toFixed(3);
-                    cell6.textContent = (underlyingTripTime * 0.95).toFixed(3);
+                    const timeMinus5 = underlyingTripTime * 0.95;
+                    const timePlus5 = underlyingTripTime * 1.05;
+                    cell5.textContent = timePlus5.toFixed(3);
+                    cell6.textContent = timeMinus5.toFixed(3);
+
+                    // For chart data (only add if it's a valid number)
+                    primaryFaultCurrentsForChart.push(faultCurrentPrimary);
+                    tripTimesForChart.push(underlyingTripTime);
+                    tripTimesMinus5Percent.push(timeMinus5);
+                    tripTimesPlus5Percent.push(timePlus5);
                 } else {
                     cell5.textContent = "N/A";
                     cell6.textContent = "N/A";
+                    // For chart data, if "No Trip" etc., we don't add to chart arrays
                 }
 
                 // Add click and touchend listeners to the row for highlighting
@@ -640,16 +778,10 @@
 
                 row.addEventListener('click', handleRowClick);
                 row.addEventListener('touchend', handleRowClick); // Add touchend listener for better mobile responsiveness
-
-                // For chart data (always use the underlying trip time and primary fault current)
-                if (typeof underlyingTripTime === 'number' && underlyingTripTime !== 0) {
-                    primaryFaultCurrentsForChart.push(faultCurrentPrimary);
-                    tripTimesForChart.push(underlyingTripTime);
-                }
             });
 
-            // Update the chart using the underlying time-current curve data
-            updateChart(primaryFaultCurrentsForChart, tripTimesForChart, curveType);
+            // Update the chart using the underlying time-current curve data and tolerance bands
+            updateChart(primaryFaultCurrentsForChart, tripTimesForChart, curveType, tripTimesMinus5Percent, tripTimesPlus5Percent, currentActualTripTimesMap);
         }
 
         // Add event listeners to input fields for real-time updates
