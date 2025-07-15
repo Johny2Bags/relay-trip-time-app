@@ -42,6 +42,10 @@
             max-width: 100%;
             height: auto;
         }
+        /* New class for highlighted row */
+        .highlighted-row {
+            background-color: #dcfce7; /* Faint green */
+        }
     </style>
 </head>
 <body class="p-4 sm:p-6 md:p-8 lg:p-10 bg-gray-100 min-h-screen flex items-center justify-center">
@@ -245,6 +249,7 @@
         const tripTimeChartCanvas = document.getElementById('tripTimeChart');
 
         let tripChart; // Variable to hold the Chart.js instance
+        let lastClickedRow = null; // Variable to keep track of the last clicked row
 
         /**
          * Initializes or updates the Chart.js graph.
@@ -565,6 +570,7 @@
 
             // Clear previous results
             resultsTableBody.innerHTML = '';
+            lastClickedRow = null; // Reset last clicked row on new results
 
             // Fixed multipliers as per user request
             const currentMultipliers = [1, 1.3, 1.5, 2, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15];
@@ -618,6 +624,18 @@
                     cell5.textContent = "N/A";
                     cell6.textContent = "N/A";
                 }
+
+                // Add click listener to the row for highlighting
+                row.addEventListener('click', () => {
+                    // Remove highlight from previously clicked row, if any
+                    if (lastClickedRow && lastClickedRow !== row) {
+                        lastClickedRow.classList.remove('highlighted-row');
+                    }
+                    // Toggle highlight on the current row
+                    row.classList.toggle('highlighted-row');
+                    // Update last clicked row
+                    lastClickedRow = row.classList.contains('highlighted-row') ? row : null;
+                });
 
                 // For chart data (always use the underlying trip time and primary fault current)
                 if (typeof underlyingTripTime === 'number' && underlyingTripTime !== 0) {
