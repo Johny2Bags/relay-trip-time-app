@@ -625,8 +625,8 @@
                     cell6.textContent = "N/A";
                 }
 
-                // Add click listener to the row for highlighting
-                row.addEventListener('click', () => {
+                // Add click and touchend listeners to the row for highlighting
+                const handleRowClick = () => {
                     // Remove highlight from previously clicked row, if any
                     if (lastClickedRow && lastClickedRow !== row) {
                         lastClickedRow.classList.remove('highlighted-row');
@@ -635,7 +635,10 @@
                     row.classList.toggle('highlighted-row');
                     // Update last clicked row
                     lastClickedRow = row.classList.contains('highlighted-row') ? row : null;
-                });
+                };
+
+                row.addEventListener('click', handleRowClick);
+                row.addEventListener('touchend', handleRowClick); // Add touchend listener for better mobile responsiveness
 
                 // For chart data (always use the underlying trip time and primary fault current)
                 if (typeof underlyingTripTime === 'number' && underlyingTripTime !== 0) {
