@@ -1,0 +1,648 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Relay Trip Time Calculator</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+    <!-- Chart.js CDN for plotting the curve -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@3.7.0/dist/chart.min.js"></script>
+
+    <!-- PWA: Link to your manifest.json -->
+    <link rel="manifest" href="manifest.json">
+
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f3f4f6; /* Light gray background */
+        }
+        /* Custom scrollbar for table body */
+        .table-body-scroll {
+            max-height: 400px; /* Limit height for scroll */
+            overflow-y: auto;
+        }
+        .table-body-scroll::-webkit-scrollbar {
+            width: 8px;
+        }
+        .table-body-scroll::-webkit-scrollbar-track {
+            background: #e0e0e0;
+            border-radius: 10px;
+        }
+        .table-body-scroll::-webkit-scrollbar-thumb {
+            background: #888;
+            border-radius: 10px;
+        }
+        .table-body-scroll::-webkit-scrollbar-thumb:hover {
+            background: #555;
+        }
+        /* Ensure canvas is responsive */
+        canvas {
+            max-width: 100%;
+            height: auto;
+        }
+    </style>
+</head>
+<body class="p-4 sm:p-6 md:p-8 lg:p-10 bg-gray-100 min-h-screen flex items-center justify-center">
+    <div class="bg-white p-6 sm:p-8 md:p-10 rounded-xl shadow-2xl w-full max-w-5xl border border-gray-200">
+        <h1 class="text-3xl sm:text-4xl font-bold text-center text-gray-800 mb-8">
+            Relay Trip Time Calculator
+        </h1>
+
+        <!-- Input Section -->
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+            <div class="flex flex-col">
+                <label for="iset" class="text-gray-700 font-medium mb-2">
+                    Relay Pickup Current (Iset) [A]:
+                </label>
+                <input
+                    type="number"
+                    id="iset"
+                    value="600"
+                    min="0.1"
+                    step="0.1"
+                    class="p-3 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500 transition duration-200"
+                />
+            </div>
+
+            <div class="flex flex-col">
+                <label for="relayType" class="text-gray-700 font-medium mb-2">
+                    Relay Type:
+                </label>
+                <select
+                    id="relayType"
+                    class="p-3 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500 transition duration-200 bg-white"
+                >
+                    <option value="GENERIC_IDMT">Generic IDMT Relay</option>
+                    <option value="VIP_400_RANGE">VIP 400 Range</option>
+                </select>
+            </div>
+
+            <div class="flex flex-col">
+                <label for="curveType" class="text-gray-700 font-medium mb-2">
+                    Curve Type:
+                </label>
+                <select
+                    id="curveType"
+                    class="p-3 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500 transition duration-200 bg-white"
+                >
+                    <option value="SI">IEC Standard Inverse (SI)</option>
+                    <option value="VI">IEC Very Inverse (VI)</option>
+                    <option value="EI">IEC Extremely Inverse (EI)</option>
+                    <option value="LI">IEC Long-Time Inverse (LI)</option>
+                    <option value="IEEE_MI">IEEE Moderately Inverse</option>
+                    <option value="IEEE_VI">IEEE Very Inverse</option>
+                    <option value="IEEE_EI">IEEE Extremely Inverse</option>
+                    <option value="DT">Definite Time (DT)</option>
+                </select>
+            </div>
+
+            <div class="flex flex-col">
+                <label for="tms" class="text-gray-700 font-medium mb-2">
+                    Time Multiplier Setting (TMS/TD):
+                </label>
+                <input
+                    type="number"
+                    id="tms"
+                    value="0.76"
+                    min="0.01"
+                    step="0.01"
+                    class="p-3 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500 transition duration-200"
+                />
+            </div>
+
+            <!-- Definite Time Delay Input (conditionally visible) -->
+            <div class="flex flex-col" id="dtDelayContainer">
+                <label for="dtDelay" class="text-gray-700 font-medium mb-2">
+                    Definite Time Delay (s):
+                </label>
+                <input
+                    type="number"
+                    id="dtDelay"
+                    value="0.5"
+                    min="0"
+                    step="0.1"
+                    class="p-3 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500 transition duration-200"
+                />
+            </div>
+
+            <!-- CT Ratio Inputs -->
+            <div class="flex flex-col">
+                <label for="ctPrimary" class="text-gray-700 font-medium mb-2">
+                    CT Primary Rating [A]:
+                </label>
+                <input
+                    type="number"
+                    id="ctPrimary"
+                    value="100"
+                    min="1"
+                    step="1"
+                    class="p-3 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500 transition duration-200"
+                />
+            </div>
+
+            <div class="flex flex-col">
+                <label for="ctSecondary" class="text-gray-700 font-medium mb-2">
+                    CT Secondary Rating [A]:
+                </label>
+                <input
+                    type="number"
+                    id="ctSecondary"
+                    value="1"
+                    min="1"
+                    step="1"
+                    class="p-3 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500 transition duration-200"
+                />
+            </div>
+        </div>
+
+        <!-- Curve Constants Display -->
+        <div class="bg-gray-50 p-4 rounded-lg border border-gray-200 mb-8">
+            <h3 class="text-lg font-semibold text-gray-700 mb-2">Curve Constants:</h3>
+            <p class="text-gray-600" id="constantsDisplay">
+                <span class="font-bold">N/A</span>
+            </p>
+        </div>
+
+        <!-- Abbreviations Description Section -->
+        <div class="bg-gray-50 p-4 rounded-lg border border-gray-200 mb-8">
+            <h3 class="text-lg font-semibold text-gray-700 mb-4">Abbreviations & Definitions:</h3>
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-2 text-gray-700 text-sm">
+                <div><span class="font-semibold">Iset:</span> Relay Pickup Current. The minimum current at which the relay begins to operate.</div>
+                <div><span class="font-semibold">TMS/TD:</span> Time Multiplier Setting / Time Dial. A setting that scales the operating time of the relay curve.</div>
+                <div><span class="font-semibold">DT Delay:</span> Definite Time Delay. A fixed time delay for definite time relays.</div>
+                <div><span class="font-semibold">CT Primary/Secondary:</span> Current Transformer Primary/Secondary Rating. Defines the ratio of the CT.</div>
+                <div><span class="font-semibold">K, P:</span> Constants used in IEC IDMT curve formulas.</div>
+                <div><span class="font-semibold">A, B, P:</span> Constants used in IEEE IDMT curve formulas.</div>
+                <div><span class="font-semibold">SI:</span> Standard Inverse (IEC).</div>
+                <div><span class="font-semibold">VI:</span> Very Inverse (IEC).</div>
+                <div><span class="font-semibold">EI:</span> Extremely Inverse (IEC).</div>
+                <div><span class="font-semibold">LI:</span> Long-Time Inverse (IEC).</div>
+                <div><span class="font-semibold">DT:</span> Definite Time.</div>
+                <div><span class="font-semibold">IEEE MI:</span> IEEE Moderately Inverse.</div>
+                <div><span class="font-semibold">IEEE VI:</span> IEEE Very Inverse.</div>
+                <div><span class="font-semibold">IEEE EI:</span> IEEE Extremely Inverse.</div>
+                <div><span class="font-semibold">VIP 400 Range:</span> A specific relay type that uses millivolt injection for testing, but still follows a selected time-current curve.</div>
+            </div>
+        </div>
+
+        <!-- Output Section -->
+        <h2 class="text-2xl font-bold text-gray-800 mb-6 text-center">
+            Calculated Values
+        </h2>
+        <div class="overflow-x-auto rounded-lg border border-gray-300 shadow-sm mb-8">
+            <table class="min-w-full divide-y divide-gray-200">
+                <thead class="bg-gray-50" id="resultsTableHeader">
+                    <!-- Headers will be dynamically generated by JavaScript -->
+                </thead>
+                <tbody id="resultsTableBody" class="bg-white divide-y divide-gray-200 table-body-scroll">
+                    <!-- Results will be inserted here by JavaScript -->
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Chart Section -->
+        <h2 class="text-2xl font-bold text-gray-800 mb-6 text-center">
+            Time-Current Curve
+        </h2>
+        <div class="bg-gray-50 p-4 rounded-lg border border-gray-200 flex justify-center items-center">
+            <canvas id="tripTimeChart"></canvas>
+        </div>
+    </div>
+
+    <script>
+        // PWA: Service Worker registration
+        // This code registers the service worker.
+        // The service worker file (service-worker.js) should be in the same directory as this HTML file.
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('service-worker.js')
+                    .then(registration => {
+                        console.log('ServiceWorker registration successful with scope: ', registration.scope);
+                    })
+                    .catch(err => {
+                        console.log('ServiceWorker registration failed: ', err);
+                    });
+            });
+        }
+
+        // JavaScript for calculations and dynamic table generation
+
+        // Get references to input elements
+        const isetInput = document.getElementById('iset');
+        const relayTypeSelect = document.getElementById('relayType');
+        const curveTypeSelect = document.getElementById('curveType');
+        const tmsInput = document.getElementById('tms');
+        const dtDelayInput = document.getElementById('dtDelay');
+        const dtDelayContainer = document.getElementById('dtDelayContainer'); // Reference to the container div
+        const ctPrimaryInput = document.getElementById('ctPrimary');
+        const ctSecondaryInput = document.getElementById('ctSecondary');
+
+        const resultsTableHeader = document.getElementById('resultsTableHeader');
+        const resultsTableBody = document.getElementById('resultsTableBody');
+        const constantsDisplay = document.getElementById('constantsDisplay');
+        const tripTimeChartCanvas = document.getElementById('tripTimeChart');
+
+        let tripChart; // Variable to hold the Chart.js instance
+
+        /**
+         * Initializes or updates the Chart.js graph.
+         * @param {Array<number>} labels - X-axis labels (Fault Current - primary).
+         * @param {Array<number>} data - Y-axis data (Trip Times).
+         * @param {string} curveType - The selected curve type for the chart title.
+         */
+        function updateChart(labels, data, curveType) {
+            if (tripChart) {
+                tripChart.destroy(); // Destroy existing chart instance to prevent memory leaks
+            }
+
+            // Filter out "No Trip" or invalid values for plotting
+            const filteredLabels = [];
+            const filteredData = [];
+            for (let i = 0; i < labels.length; i++) {
+                if (data[i] !== "No Trip" && data[i] !== "Very Long Time / No Trip" && data[i] !== "Invalid Curve Type") {
+                    filteredLabels.push(labels[i]);
+                    filteredData.push(data[i]);
+                }
+            }
+
+            const ctx = tripTimeChartCanvas.getContext('2d');
+            tripChart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: filteredLabels,
+                    datasets: [{
+                        label: `Trip Time for ${curveType} Curve`,
+                        data: filteredData,
+                        borderColor: 'rgb(59, 130, 246)', // Blue color
+                        backgroundColor: 'rgba(59, 130, 246, 0.2)',
+                        borderWidth: 2,
+                        pointRadius: 3,
+                        pointBackgroundColor: 'rgb(59, 130, 246)',
+                        fill: false,
+                        tension: 0.1 // Smooth the curve
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: true,
+                    scales: {
+                        x: {
+                            type: 'logarithmic', // Logarithmic scale for current
+                            title: {
+                                display: true,
+                                text: 'Fault Current (Primary Side) [A] - Log Scale',
+                                color: '#4b5563',
+                                font: {
+                                    size: 14,
+                                    weight: 'bold'
+                                }
+                            },
+                            ticks: {
+                                callback: function(value, index, values) {
+                                    // Display only specific ticks to avoid clutter
+                                    if (value >= 1 && value < 10 && value % 1 === 0) return value;
+                                    if (value >= 10 && value < 100 && value % 10 === 0) return value;
+                                    if (value >= 100 && value < 1000 && value % 100 === 0) return value;
+                                    if (value >= 1000 && value < 10000 && value % 1000 === 0) return value;
+                                    if (value >= 10000 && value % 10000 === 0) return value;
+                                    return null;
+                                },
+                                color: '#6b7280'
+                            },
+                            grid: {
+                                color: 'rgba(200, 200, 200, 0.2)'
+                            }
+                        },
+                        y: {
+                            type: 'logarithmic', // Logarithmic scale for time
+                            title: {
+                                display: true,
+                                text: 'Trip Time (s) - Log Scale',
+                                color: '#4b5563',
+                                font: {
+                                    size: 14,
+                                    weight: 'bold'
+                                }
+                            },
+                            ticks: {
+                                callback: function(value, index, values) {
+                                    // Display only specific ticks to avoid clutter
+                                    if (value >= 0.01 && value < 0.1 && (value * 100) % 1 === 0) return value;
+                                    if (value >= 0.1 && value < 1 && (value * 10) % 1 === 0) return value;
+                                    if (value >= 1 && value < 10 && value % 1 === 0) return value;
+                                    if (value >= 10 && value < 100 && value % 10 === 0) return value;
+                                    if (value >= 100 && value < 1000 && value % 100 === 0) return value;
+                                    if (value >= 1000 && value % 1000 === 0) return value;
+                                    return null;
+                                },
+                                color: '#6b7280'
+                            },
+                            grid: {
+                                color: 'rgba(200, 200, 200, 0.2)'
+                            }
+                        }
+                    },
+                    plugins: {
+                        legend: {
+                            display: true,
+                            position: 'top',
+                            labels: {
+                                color: '#4b5563',
+                                font: {
+                                    size: 14
+                                }
+                            }
+                        },
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    let label = context.dataset.label || '';
+                                    if (label) {
+                                        label += ': ';
+                                    }
+                                    if (context.parsed.y !== null) {
+                                        label += `${context.parsed.y.toFixed(3)} s at ${context.parsed.x.toFixed(2)} A (Primary)`;
+                                    }
+                                    return label;
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        /**
+         * Defines the constants for each IEC and IEEE IDMT curve type.
+         * Includes 'type' property to distinguish between IEC and IEEE formulas.
+         */
+        const curveConstants = {
+            "SI": { type: "IEC", K: 0.14, P: 0.02 },
+            "VI": { type: "IEC", K: 13.5, P: 1.0 },
+            "EI": { type: "IEC", K: 80.0, P: 2.0 }, // IEC Extremely Inverse
+            "LI": { type: "IEC", K: 120.0, P: 1.0 },
+            "IEEE_MI": { type: "IEEE", A: 0.0515, B: 0.1140, P: 0.02 },
+            "IEEE_VI": { type: "IEEE", A: 19.61, B: 0.4910, P: 2.00 },
+            "IEEE_EI": { type: "IEEE", A: 28.200, B: 0.1217, P: 2.00 }, // IEEE Extremely Inverse
+            "DT": { type: "DT" }
+        };
+
+        /**
+         * Calculates the trip time based on the selected curve type and input parameters.
+         * This function is independent of the relay type, as the underlying curve is the same.
+         * @param {number} currentMultiplier - The ratio of fault current to pickup current (I/Iset).
+         * @param {string} curveType - The type of IDMT curve (SI, VI, EI, LI, IEEE_MI, IEEE_VI, IEEE_EI, DT).
+         * @param {number} tms - Time Multiplier Setting (or Time Dial for IEEE).
+         * @param {number} dtDelay - Definite Time Delay (for DT curve).
+         * @returns {number | string} The calculated trip time as a number, or "No Trip", or "Invalid Curve Type".
+         */
+        function calculateTripTime(currentMultiplier, curveType, tms, dtDelay) {
+            if (currentMultiplier <= 1) {
+                return "No Trip"; // Relay does not trip if current is below or at Iset
+            }
+
+            const constants = curveConstants[curveType];
+            if (!constants) {
+                return "Invalid Curve Type";
+            }
+
+            if (constants.type === "DT") {
+                return dtDelay; // Return fixed delay for DT curve
+            }
+
+            let tripTime;
+            const denominator = Math.pow(currentMultiplier, constants.P) - 1;
+
+            // Handle division by zero or very small denominators that could lead to extremely large times
+            if (denominator <= 0) {
+                return "Very Long Time / No Trip";
+            }
+
+            if (constants.type === "IEC") {
+                tripTime = tms * (constants.K / denominator);
+            } else if (constants.type === "IEEE") {
+                tripTime = tms * ((constants.A / denominator) + constants.B);
+            } else {
+                return "Invalid Curve Type"; // Should not happen with dropdown
+            }
+
+            // Ensure trip time is not negative or excessively large due to floating point inaccuracies
+            if (tripTime < 0) {
+                return "No Trip";
+            } else if (tripTime > 9999) { // Cap excessively large times for display and plotting
+                return 9999;
+            }
+
+            return tripTime;
+        }
+
+        /**
+         * Updates the K, P, A, B values displayed based on the selected curve type.
+         */
+        function updateConstantsDisplay() {
+            const curveType = curveTypeSelect.value;
+            const constants = curveConstants[curveType];
+
+            if (constants) {
+                if (constants.type === "IEC") {
+                    constantsDisplay.innerHTML = `IEC Constants: K: <span class="font-bold">${constants.K}</span>, P: <span class="font-bold">${constants.P}</span>`;
+                } else if (constants.type === "IEEE") {
+                    constantsDisplay.innerHTML = `IEEE Constants: A: <span class="font-bold">${constants.A}</span>, B: <span class="font-bold">${constants.B}</span>, P: <span class="font-bold">${constants.P}</span>`;
+                } else if (constants.type === "DT") {
+                    constantsDisplay.innerHTML = `No specific constants for Definite Time curve.`;
+                }
+            } else {
+                constantsDisplay.innerHTML = `Constants: <span class="font-bold">N/A</span>`;
+            }
+        }
+
+        /**
+         * Toggles the visibility of the Definite Time Delay input field.
+         */
+        function toggleDtDelayVisibility() {
+            if (curveTypeSelect.value === "DT") {
+                dtDelayContainer.style.display = 'flex'; // Use flex to maintain layout
+            } else {
+                dtDelayContainer.style.display = 'none';
+            }
+        }
+
+        /**
+         * Updates the table headers based on the selected relay type.
+         */
+        function updateTableHeaders() {
+            const relayType = relayTypeSelect.value;
+            const headerTableElement = resultsTableHeader; // This is the <thead> element
+
+            // Clear all existing content within the <thead>
+            headerTableElement.innerHTML = '';
+
+            // Create a new <tr> element for the headers
+            const headerRow = document.createElement('tr');
+            headerTableElement.appendChild(headerRow); // Append the new row to the <thead>
+
+            // Add fixed headers to the new row
+            const fixedHeadersInitial = [
+                "Current Multiplier (I/Iset)",
+                "Fault Current (Primary) [A]"
+            ];
+            fixedHeadersInitial.forEach(text => {
+                const th = document.createElement('th');
+                th.scope = 'col';
+                th.className = 'px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider';
+                th.textContent = text;
+                headerRow.appendChild(th);
+            });
+
+            // Conditionally add the 3rd column header
+            const thConditional = document.createElement('th');
+            thConditional.scope = 'col';
+            thConditional.className = 'px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider';
+            if (relayType === "VIP_400_RANGE") {
+                thConditional.textContent = 'CT Secondary Injection (mV)';
+            } else {
+                thConditional.textContent = 'CT Secondary Current (Injection) [A]';
+            }
+            headerRow.appendChild(thConditional);
+
+            // Add remaining fixed headers
+            const fixedHeadersFinal = [
+                "Expected Trip Time (s)",
+                "+5% Time (s)",
+                "-5% Time (s)"
+            ];
+            fixedHeadersFinal.forEach(text => {
+                const th = document.createElement('th');
+                th.scope = 'col';
+                th.className = 'px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider';
+                th.textContent = text;
+                headerRow.appendChild(th);
+            });
+        }
+
+
+        /**
+         * Updates the results table and the chart based on current input values.
+         */
+        function updateResults() {
+            const iset = parseFloat(isetInput.value);
+            const relayType = relayTypeSelect.value;
+            const curveType = curveTypeSelect.value;
+            const tms = parseFloat(tmsInput.value);
+            const dtDelay = parseFloat(dtDelayInput.value);
+            const ctPrimary = parseFloat(ctPrimaryInput.value);
+            const ctSecondary = parseFloat(ctSecondaryInput.value);
+
+            // Validate inputs
+            // The number of columns is always 6 now, as one column replaces another.
+            const errorColspan = 6;
+
+            if (isNaN(iset) || iset <= 0 || isNaN(tms) || tms <= 0 || isNaN(dtDelay) || dtDelay < 0) {
+                resultsTableBody.innerHTML = `<tr><td colspan="${errorColspan}" class="px-4 py-2 text-center text-red-600">Please enter valid positive numbers for Relay Settings.</td></tr>`;
+                updateConstantsDisplay();
+                updateTableHeaders(); // Ensure headers are correct even with error
+                updateChart([], [], curveType); // Clear chart
+                return;
+            }
+
+            // Validate CT ratio
+            if (isNaN(ctPrimary) || isNaN(ctSecondary) || ctPrimary <= 0 || ctSecondary <= 0) {
+                resultsTableBody.innerHTML = `<tr><td colspan="${errorColspan}" class="px-4 py-2 text-center text-red-600">Invalid CT Ratio. Please enter positive values for CT Primary and Secondary.</td></tr>`;
+                updateConstantsDisplay();
+                updateTableHeaders(); // Ensure headers are correct even with error
+                updateChart([], [], curveType); // Clear chart
+                return;
+            }
+
+            const ctRatio = ctPrimary / ctSecondary;
+
+            // Update displays
+            updateConstantsDisplay();
+            updateTableHeaders(); // Update headers based on selected relay type
+            toggleDtDelayVisibility(); // Update visibility of DT Delay input
+
+            // Clear previous results
+            resultsTableBody.innerHTML = '';
+
+            // Fixed multipliers as per user request
+            const currentMultipliers = [1, 1.3, 1.5, 2, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15];
+
+
+            const tripTimesForChart = []; // Store actual trip times for chart
+            const primaryFaultCurrentsForChart = []; // Store primary fault currents for chart
+
+            currentMultipliers.forEach(multiplier => {
+                const faultCurrentPrimary = multiplier * iset;
+                const ctSecondaryCurrent = faultCurrentPrimary / ctRatio;
+                
+                const underlyingTripTime = calculateTripTime(multiplier, curveType, tms, dtDelay);
+
+                const row = resultsTableBody.insertRow();
+                row.className = 'hover:bg-gray-50 transition duration-150';
+
+                const cell1 = row.insertCell(0); // Current Multiplier
+                const cell2 = row.insertCell(1); // Fault Current (Primary)
+                const cell3 = row.insertCell(2); // Conditional 3rd column (Secondary Current or mV Injection)
+                const cell4 = row.insertCell(3); // Expected Trip Time (s)
+                const cell5 = row.insertCell(4); // +5% Time (s)
+                const cell6 = row.insertCell(5); // -5% Time (s)
+
+                // Apply common cell styling
+                const commonCellClass = 'px-4 py-2 whitespace-nowrap text-sm text-gray-700';
+                cell1.className = 'px-4 py-2 whitespace-nowrap text-sm font-medium text-gray-900'; // Multiplier is slightly different
+                cell2.className = commonCellClass;
+                cell3.className = commonCellClass; // This cell's content changes
+                cell4.className = commonCellClass;
+                cell5.className = commonCellClass;
+                cell6.className = commonCellClass;
+
+                cell1.textContent = multiplier.toFixed(1);
+                cell2.textContent = faultCurrentPrimary.toFixed(2);
+                
+                // Populate the conditional 3rd cell based on relay type
+                if (relayType === "VIP_400_RANGE") {
+                    cell3.textContent = (ctSecondaryCurrent * 150).toFixed(2); // mV injection
+                } else {
+                    cell3.textContent = ctSecondaryCurrent.toFixed(2); // Ampere injection
+                }
+
+                const displayTripTime = typeof underlyingTripTime === 'number' ? underlyingTripTime.toFixed(3) : underlyingTripTime;
+                cell4.textContent = displayTripTime;
+
+                if (typeof underlyingTripTime === 'number') {
+                    cell5.textContent = (underlyingTripTime * 1.05).toFixed(3);
+                    cell6.textContent = (underlyingTripTime * 0.95).toFixed(3);
+                } else {
+                    cell5.textContent = "N/A";
+                    cell6.textContent = "N/A";
+                }
+
+                // For chart data (always use the underlying trip time and primary fault current)
+                if (typeof underlyingTripTime === 'number' && underlyingTripTime !== 0) {
+                    primaryFaultCurrentsForChart.push(faultCurrentPrimary);
+                    tripTimesForChart.push(underlyingTripTime);
+                }
+            });
+
+            // Update the chart using the underlying time-current curve data
+            updateChart(primaryFaultCurrentsForChart, tripTimesForChart, curveType);
+        }
+
+        // Add event listeners to input fields for real-time updates
+        isetInput.addEventListener('input', updateResults);
+        relayTypeSelect.addEventListener('change', updateResults);
+        curveTypeSelect.addEventListener('change', updateResults);
+        tmsInput.addEventListener('input', updateResults);
+        dtDelayInput.addEventListener('input', updateResults);
+        ctPrimaryInput.addEventListener('input', updateResults);
+        ctSecondaryInput.addEventListener('input', updateResults);
+
+        // Initial calculation and chart rendering when the page loads
+        document.addEventListener('DOMContentLoaded', () => {
+            updateResults();
+        });
+    </script>
+</body>
+</html>
