@@ -90,14 +90,14 @@
                         value="600"
                         min="0.1"
                         step="0.1"
-                        class="p-3 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500 transition duration-200 flex-grow"
+                        class="p-3 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500 transition duration-200 flex-grow min-w-0"
                     />
                     <select
                         id="isetUnit"
-                        class="p-3 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500 transition duration-200 bg-white"
+                        class="p-2 text-sm border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500 transition duration-200 bg-white min-w-0"
                     >
-                        <option value="Primary">[A] Primary</option>
-                        <option value="Secondary">[A] Secondary</option>
+                        <option value="Primary">Primary (A)</option>
+                        <option value="Secondary">Secondary (A)</option>
                     </select>
                 </div>
             </div>
@@ -771,11 +771,11 @@
                 // Create and append the input field for Actual Trip Time
                 const actualTimeInput = document.createElement('input');
                 actualTimeInput.type = 'number';
-                actualTimeInput.step = '0.001'; // Corrected from actualTime.step
-                actualTimeInput.min = '0'; // Corrected from actualTime.min
-                actualTimeInput.className = 'actual-time-input'; // Corrected from actualTime.className
-                actualTimeInput.placeholder = 'Enter time'; // Corrected from actualTime.placeholder
-                actualTimeInput.dataset.faultCurrentPrimary = faultCurrentPrimary; // Corrected from actualTime.dataset.faultCurrentPrimary
+                actualTimeInput.step = '0.001';
+                actualTimeInput.min = '0';
+                actualTimeInput.className = 'actual-time-input';
+                actualTimeInput.placeholder = 'Enter time';
+                actualTimeInput.dataset.faultCurrentPrimary = faultCurrentPrimary; // Store fault current for chart update
                 
                 // Add event listener to update chart when actual time is entered
                 actualTimeInput.addEventListener('input', (event) => {
