@@ -69,20 +69,37 @@
             Relay Trip Time Calculator
         </h1>
 
+        <!-- Image added here -->
+        <img
+            src="https://github.com/Johny2Bags/relay-trip-time-app/blob/main/sticker.png?raw=true"
+            alt="Relay Trip Time App Logo"
+            class="w-32 h-32 mx-auto mb-8 rounded-full shadow-lg"
+            onerror="this.onerror=null; this.src='https://placehold.co/128x128/cccccc/333333?text=Logo';"
+        >
+
         <!-- Input Section -->
         <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
             <div class="flex flex-col">
                 <label for="iset" class="text-gray-700 font-medium mb-2">
-                    Relay Pickup Current (Iset) [A]:
+                    Relay Pickup Current (Iset):
                 </label>
-                <input
-                    type="number"
-                    id="iset"
-                    value="600"
-                    min="0.1"
-                    step="0.1"
-                    class="p-3 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500 transition duration-200"
-                />
+                <div class="flex items-center gap-2">
+                    <input
+                        type="number"
+                        id="iset"
+                        value="600"
+                        min="0.1"
+                        step="0.1"
+                        class="p-3 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500 transition duration-200 flex-grow"
+                    />
+                    <select
+                        id="isetUnit"
+                        class="p-3 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500 transition duration-200 bg-white"
+                    >
+                        <option value="Primary">[A] Primary</option>
+                        <option value="Secondary">[A] Secondary</option>
+                    </select>
+                </div>
             </div>
 
             <div class="flex flex-col">
@@ -147,6 +164,10 @@
             </div>
 
             <!-- CT Ratio Inputs -->
+            <!-- Conditional note for VIP 400 Range -->
+            <div id="vip400CtNote" class="col-span-1 md:col-span-2 bg-blue-50 border border-blue-200 text-blue-800 px-4 py-3 rounded-lg text-sm hidden">
+                <p class="font-medium">Note: CT ratings for VIP 400 range are generally 200 primary / 1 secondary.</p>
+            </div>
             <div class="flex flex-col">
                 <label for="ctPrimary" class="text-gray-700 font-medium mb-2">
                     CT Primary Rating [A]:
@@ -250,6 +271,7 @@
 
         // Get references to input elements
         const isetInput = document.getElementById('iset');
+        const isetUnitSelect = document.getElementById('isetUnit'); // New reference for iset unit
         const relayTypeSelect = document.getElementById('relayType');
         const curveTypeSelect = document.getElementById('curveType');
         const tmsInput = document.getElementById('tms');
@@ -257,6 +279,7 @@
         const dtDelayContainer = document.getElementById('dtDelayContainer'); // Reference to the container div
         const ctPrimaryInput = document.getElementById('ctPrimary');
         const ctSecondaryInput = document.getElementById('ctSecondary');
+        const vip400CtNote = document.getElementById('vip400CtNote'); // Reference to the new note div
 
         const resultsTableHeader = document.getElementById('resultsTableHeader');
         const resultsTableBody = document.getElementById('resultsTableBody');
@@ -556,13 +579,21 @@
         }
 
         /**
-         * Toggles the visibility of the Definite Time Delay input field.
+         * Toggles the visibility of the Definite Time Delay input field and the VIP 400 CT note.
          */
-        function toggleDtDelayVisibility() {
+        function toggleVisibility() {
+            // Toggle DT Delay visibility
             if (curveTypeSelect.value === "DT") {
                 dtDelayContainer.style.display = 'flex'; // Use flex to maintain layout
             } else {
                 dtDelayContainer.style.display = 'none';
+            }
+
+            // Toggle VIP 400 CT note visibility
+            if (relayTypeSelect.value === "VIP_400_RANGE") {
+                vip400CtNote.classList.remove('hidden');
+            } else {
+                vip400CtNote.classList.add('hidden');
             }
         }
 
@@ -638,7 +669,8 @@
          * Updates the results table and the chart based on current input values.
          */
         function updateResults() {
-            const iset = parseFloat(isetInput.value);
+            let iset = parseFloat(isetInput.value); // Use 'let' as it might be re-assigned
+            const isetUnit = isetUnitSelect.value; // Get the selected unit for iset
             const relayType = relayTypeSelect.value;
             const curveType = curveTypeSelect.value;
             const tms = parseFloat(tmsInput.value);
@@ -655,6 +687,7 @@
                 updateConstantsDisplay();
                 updateTableHeaders(); // Ensure headers are correct even with error
                 updateChart([], [], curveType, [], [], new Map()); // Clear chart including tolerance bands and actual points
+                toggleVisibility(); // Ensure visibility is updated even with error
                 return;
             }
 
@@ -664,15 +697,21 @@
                 updateConstantsDisplay();
                 updateTableHeaders(); // Ensure headers are correct even with error
                 updateChart([], [], curveType, [], [], new Map()); // Clear chart including tolerance bands and actual points
+                toggleVisibility(); // Ensure visibility is updated even with error
                 return;
             }
 
             const ctRatio = ctPrimary / ctSecondary;
 
+            // Convert Iset to primary if it's entered as secondary
+            if (isetUnit === 'Secondary') {
+                iset = iset * ctRatio;
+            }
+
             // Update displays
             updateConstantsDisplay();
             updateTableHeaders(); // Update headers based on selected relay type
-            toggleDtDelayVisibility(); // Update visibility of DT Delay input
+            toggleVisibility(); // Update visibility of DT Delay input and VIP 400 CT note
 
             // Clear previous results
             resultsTableBody.innerHTML = '';
@@ -792,16 +831,19 @@
 
         // Add event listeners to input fields for real-time updates
         isetInput.addEventListener('input', updateResults);
+        isetUnitSelect.addEventListener('change', updateResults); // New event listener for iset unit change
         relayTypeSelect.addEventListener('change', updateResults);
         curveTypeSelect.addEventListener('change', updateResults);
         tmsInput.addEventListener('input', updateResults);
         dtDelayInput.addEventListener('input', updateResults);
         ctPrimaryInput.addEventListener('input', updateResults);
         ctSecondaryInput.addEventListener('input', updateResults);
+        relayTypeSelect.addEventListener('change', toggleVisibility); // Listen for relay type changes to toggle note
 
         // Initial calculation and chart rendering when the page loads
         document.addEventListener('DOMContentLoaded', () => {
             updateResults();
+            toggleVisibility(); // Call on load to set initial visibility
         });
     </script>
 </body>
